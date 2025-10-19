@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentiment Score Calculation & Clustering - Technical Deep Dive</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .slide {
+            background: white;
+            border-radius: 20px;
+            padding: 50px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        h1 {
+            color: #667eea;
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-align: center;
+            border-bottom: 4px solid #764ba2;
+            padding-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        
+        h2 {
+            color: #764ba2;
+            font-size: 2.2em;
+            margin: 30px 0 20px 0;
+            border-left: 6px solid #667eea;
+            padding-left: 20px;
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        h2::before {
+            content: '▶';
+            position: absolute;
+            left: -15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #667eea;
+            font-size: 0.6em;
+        }
+        
+        h3 {
+            color: #667eea;
+            font-size: 1.6em;
+            margin: 25px 0 15px 0;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+            font-weight: 600;
+            position: relative;
+        }
+
+        h3::before {
+            content: '●';
+            color: #4caf50;
+            margin-right: 10px;
+            font-size: 0.8em;
+        }
+        
+        h4 {
+            color: #764ba2;
+            font-size: 1.3em;
+            margin: 20px 0 10px 0;
+            font-weight: 600;
+            position: relative;
+        }
+
+        h4::before {
+            content: '▸';
+            color: #ff9800;
+            margin-right: 8px;
+            font-size: 0.9em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 1.3em;
+            margin-bottom: 30px;
+        }
+        
+        .formula-box {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-left: 6px solid #667eea;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .formula-box::before {
+            content: '📐';
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5em;
+            opacity: 0.3;
+        }
+
+        .formula-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+            border-left-color: #4caf50;
+        }
+        
+        .code-block {
+            background: linear-gradient(135deg, #282c34 0%, #21252b 100%);
+            color: #abb2bf;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 25px 0;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.95em;
+            white-space: pre;
+            line-height: 1.5;
+            tab-size: 4;
+            word-break: normal;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            position: relative;
+            border: 1px solid #3c4043;
+            transition: all 0.3s ease;
+        }
+
+        .code-block::before {
+            content: '💻';
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.2em;
+            opacity: 0.5;
+        }
+
+        .code-block:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.4);
+            border-color: #667eea;
+        }
+        
+        .code-block .keyword {
+            color: #c678dd;
+        }
+        
+        .code-block .string {
+            color: #98c379;
+        }
+        
+        .code-block .number {
+            color: #d19a66;
+        }
+        
+        .code-block .comment {
+            color: #5c6370;
+            font-style: italic;
+        }
+        
+        .highlight {
+            background: linear-gradient(120deg, #ffeaa7 0%, #fdcb6e 100%);
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border-left: 6px solid #2196F3;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .info-box::before {
+            content: 'ℹ️';
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5em;
+            opacity: 0.7;
+        }
+
+        .info-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(33, 150, 243, 0.2);
+        }
+        
+        .warning-box {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            border-left: 6px solid #ff9800;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .warning-box::before {
+            content: '⚠️';
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5em;
+            opacity: 0.7;
+        }
+
+        .warning-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(255, 152, 0, 0.2);
+        }
+        
+        .success-box {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border-left: 6px solid #4caf50;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .success-box::before {
+            content: '✅';
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5em;
+            opacity: 0.7;
+        }
+
+        .success-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(76, 175, 80, 0.2);
+        }
+        
+        ul, ol {
+            margin: 15px 0 15px 40px;
+        }
+        
+        li {
+            margin: 10px 0;
+            font-size: 1.05em;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-radius: 15px;
+            overflow: hidden;
+            background: white;
+            border: 2px solid #e0e0e0;
+        }
+        
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 18px 20px;
+            text-align: left;
+            font-size: 1.1em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+
+        th::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #ff6b6b 0%, #4ecdc4 100%);
+        }
+        
+        td {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 1.05em;
+            transition: all 0.3s ease;
+        }
+        
+        tr:nth-child(even) {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+        
+        tr:hover {
+            background: linear-gradient(135deg, #e8eaf6 0%, #f3e5f5 100%);
+            transform: scale(1.01);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        tr:hover td {
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        /* Enhanced table styling for specific table types */
+        .data-table th {
+            background: linear-gradient(135deg, #4caf50 0%, #8bc34a 100%);
+        }
+
+        .example-table th {
+            background: linear-gradient(135deg, #ff9800 0%, #ffc107 100%);
+        }
+
+        .warning-table th {
+            background: linear-gradient(135deg, #f44336 0%, #ff5722 100%);
+        }
+        
+        .mermaid {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin: 25px 0;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border: 2px solid #e0e0e0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mermaid::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .mermaid:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+        
+        .card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #e9ecef;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-color: #667eea;
+        }
+
+        .card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .card h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h4::before {
+            content: '▶';
+            font-size: 0.8em;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover h4::before {
+            opacity: 1;
+            transform: translateX(5px);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin: 5px;
+        }
+        
+        .badge-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .badge-secondary {
+            background: #764ba2;
+            color: white;
+        }
+        
+        .badge-success {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .badge-info {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .toc {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+        }
+        
+        .toc h3 {
+            border: none;
+            margin-top: 0;
+        }
+        
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 1.1em;
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .toc a:hover {
+            background: white;
+            padding-left: 20px;
+        }
+        
+        .example-box {
+            background: #f8f9fa;
+            border: 2px dashed #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        
+        /* Navigation Styles */
+        .nav-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid #667eea;
+            z-index: 1000;
+            padding: 15px 0;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-links a {
+            color: #764ba2;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 8px 15px;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .nav-links a {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-links a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .nav-links a:hover::before {
+            left: 100%;
+        }
+
+        /* Progress Indicator */
+        .progress-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: rgba(102, 126, 234, 0.1);
+            z-index: 1001;
+            backdrop-filter: blur(10px);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #4caf50 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+        }
+
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 20px;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-20px); }
+            100% { transform: translateX(20px); }
+        }
+
+        /* Enhanced TOC */
+        .toc {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+            position: relative;
+        }
+
+        .toc-toggle {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .toc-toggle:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        .toc-content {
+            display: block;
+        }
+
+        .toc-content.collapsed {
+            display: none;
+        }
+
+        /* Back to Top Button */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2em;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .back-to-top:hover {
+            background: #764ba2;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        /* Smooth Scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Interactive Elements */
+        .collapsible {
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .collapsible::after {
+            content: '▼';
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: transform 0.3s ease;
+            font-size: 0.8em;
+            color: #667eea;
+        }
+
+        .collapsible.active::after {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.active {
+            max-height: 1000px;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Enhanced Badges */
+        .badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 25px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin: 5px;
+            transition: all 0.3s ease;
+            cursor: default;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .badge::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .badge:hover::before {
+            left: 100%;
+        }
+
+        .badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        /* Mobile Navigation */
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-menu-toggle:hover {
+            transform: scale(1.1);
+            color: #764ba2;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .slide {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            h2 {
+                font-size: 1.6em;
+            }
+
+            .mobile-menu-toggle {
+                display: block;
+            }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                flex-direction: column;
+                padding: 20px;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            }
+
+            .nav-links.active {
+                display: flex;
+            }
+
+            .nav-links a {
+                padding: 12px 0;
+                border-bottom: 1px solid #eee;
+            }
+
+            .nav-links a:last-child {
+                border-bottom: none;
+            }
+
+            .back-to-top {
+                bottom: 20px;
+                right: 20px;
+                width: 45px;
+                height: 45px;
+            }
+        }
+        #examples { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- Progress Indicator -->
+    <div class="progress-container">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- Navigation Menu -->
+    <nav class="nav-menu">
+        <div class="nav-container">
+            <a href="#" class="nav-title">📊 Sentiment Analysis Guide</a>
+            <button class="mobile-menu-toggle" id="mobileToggle">☰</button>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#sentiment-article">Article Analysis</a></li>
+                <li><a href="#sentiment-topic">Topic Aggregation</a></li>
+                <li><a href="#sentiment-formula">Formula</a></li>
+                <li><a href="#clustering">Clustering</a></li>
+                <li><a href="#clustering-process">Process Flow</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Back to Top Button -->
+    <button class="back-to-top" id="backToTop">↑</button>
+
+    <div class="container" style="margin-top: 80px;">
+        <!-- Title Slide -->
+        <div class="slide">
+            <h1>🎯 Sentiment Score Calculation & Clustering</h1>
+            <p class="subtitle">Technical Deep Dive into PredictoresAI's Analysis Engine</p>
+            
+            <div class="toc">
+                <button class="toc-toggle" onclick="toggleTOC()">📋 Table of Contents</button>
+                <div class="toc-content" id="tocContent">
+                    <a href="#overview">1. System Overview</a>
+                    <a href="#sentiment-article">2. Article-Level Sentiment Analysis</a>
+                    <a href="#sentiment-topic">3. Topic-Level Sentiment Aggregation</a>
+                    <a href="#sentiment-formula">4. Sentiment Score Mathematical Formula</a>
+                    <a href="#clustering">5. Subtopic Clustering System</a>
+                    <a href="#clustering-process">6. Clustering Process Flow</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Overview -->
+        <div class="slide" id="overview">
+            <h2>1. System Overview</h2>
+            
+            <div class="info-box">
+                <h4>🎯 Key Objectives</h4>
+                <ul>
+                    <li>Analyze sentiment at both <strong>article</strong> and <strong>topic</strong> levels</li>
+                    <li>Cluster similar subtopics using semantic understanding</li>
+                    <li>Weight sources based on type (provided vs. supplementary) and trust scores</li>
+                    <li>Detect conflicts between different source types</li>
+                </ul>
+            </div>
+
+            <div class="mermaid">
+                graph TB
+                    A[Articles Collection] --> B{Source Type}
+                    B -->|Provided| C[Provided Sources<br/>Weight: 0.7]
+                    B -->|Supplementary| D[Supplementary Sources<br/>Weight: 0.3]
+                    C --> E[Article Analysis]
+                    D --> E
+                    E --> F[Window-based Sentiment<br/>BERT or LLM]
+                    F --> G[Subtopic Extraction]
+                    G --> H[Semantic Clustering]
+                    H --> I[Topic-Level Aggregation]
+                    I --> J[Final Sentiment Score<br/>+ Trust Score]
+                    
+                    style A fill:#667eea,color:#fff
+                    style J fill:#4caf50,color:#fff
+                    style C fill:#ff9800,color:#fff
+                    style D fill:#2196F3,color:#fff
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h4>🔍 Analysis Methods</h4>
+                    <span class="badge badge-primary">BERT-based</span>
+                    <span class="badge badge-secondary">LLM-based</span>
+                    <p style="margin-top: 15px;">Both methods analyze text at the window level, extracting sentiment and subtopics from article sections.</p>
+                </div>
+                <div class="card">
+                    <h4>📊 Output Metrics</h4>
+                    <span class="badge badge-success">Sentiment Score (0-100)</span>
+                    <span class="badge badge-info">Trust Score (0-100)</span>
+                    <p style="margin-top: 15px;">Sentiment Classification: Very Negative, Negative, Neutral, Positive, Very Positive</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Article-Level Sentiment -->
+        <div class="slide" id="sentiment-article">
+            <h2>2. Article-Level Sentiment Analysis</h2>
+            
+            <h3>2.1 Article Processing Pipeline</h3>
+            
+            <div class="mermaid">
+                graph LR
+                    A[Raw Article Text] --> B[Content Cleaning]
+                    B --> C[Window Segmentation<br/>~300-500 words]
+                    C --> D{Analysis Method}
+                    D -->|BERT| E[BERT Model Analysis]
+                    D -->|LLM| F[LLM Model Analysis]
+                    E --> G[Window Results]
+                    F --> G
+                    G --> H[Subtopic Extraction]
+                    G --> I[Sentiment Score per Window]
+                    H --> J[ArticleWindowAnalysis Record]
+                    I --> J
+                    
+                    style A fill:#667eea,color:#fff
+                    style J fill:#4caf50,color:#fff
+            </div>
+
+            <h3>2.2 Window-Based Analysis</h3>
+            
+            <div class="code-block">
+<span class="comment"># Each article is divided into windows</span>
+<span class="keyword">class</span> ArticleWindowAnalysis:
+    article_id: <span class="string">str</span>
+    window_text: <span class="string">str</span>           <span class="comment"># Text content of this window</span>
+    word_count: <span class="number">int</span>            <span class="comment"># Word count</span>
+    subtopic: <span class="string">str</span>              <span class="comment"># Identified subtopic</span>
+    subtopic_confidence: <span class="number">float</span>  <span class="comment"># 0.0 - 1.0</span>
+    sentiment_score: <span class="number">int</span>        <span class="comment"># 0 - 100</span>
+    sentiment_class: <span class="string">str</span>        <span class="comment"># "Very Positive", "Positive", etc.</span>
+    trust_score: <span class="number">float</span>          <span class="comment"># 0.0 - 100.0</span>
+            </div>
+
+            <h3>2.3 Sentiment Classification Thresholds</h3>
+            
+            <div class="tooltip" style="margin-bottom: 15px;">
+                <span class="badge badge-info">ℹ️ Hover for details</span>
+                <span class="tooltiptext">These thresholds help categorize sentiment scores into meaningful categories for easier interpretation and analysis.</span>
+            </div>
+            
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Score Range</th>
+                        <th>Classification</th>
+                        <th>Interpretation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>81 - 100</td>
+                        <td><strong style="color: #4caf50;">Very Positive</strong></td>
+                        <td>Highly favorable sentiment, strong positive indicators</td>
+                    </tr>
+                    <tr>
+                        <td>61 - 80</td>
+                        <td><strong style="color: #8bc34a;">Positive</strong></td>
+                        <td>Generally favorable sentiment, positive tone</td>
+                    </tr>
+                    <tr>
+                        <td>41 - 60</td>
+                        <td><strong style="color: #ff9800;">Neutral</strong></td>
+                        <td>Balanced or mixed sentiment, no clear bias</td>
+                    </tr>
+                    <tr>
+                        <td>21 - 40</td>
+                        <td><strong style="color: #ff5722;">Negative</strong></td>
+                        <td>Generally unfavorable sentiment, negative tone</td>
+                    </tr>
+                    <tr>
+                        <td>0 - 20</td>
+                        <td><strong style="color: #f44336;">Very Negative</strong></td>
+                        <td>Highly unfavorable sentiment, strong negative indicators</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="example-box">
+                <h4>📝 Example: Article with Multiple Windows</h4>
+                <p><strong>Article:</strong> "AI in Healthcare: Opportunities and Challenges"</p>
+                <ul>
+                    <li><strong>Window 1:</strong> Introduction to AI benefits → Sentiment: 75 (Positive)</li>
+                    <li><strong>Window 2:</strong> Privacy concerns → Sentiment: 35 (Negative)</li>
+                    <li><strong>Window 3:</strong> Future opportunities → Sentiment: 82 (Very Positive)</li>
+                </ul>
+                <p><strong>Article Average Sentiment:</strong> (75 + 35 + 82) / 3 = <span class="highlight">64 (Positive)</span></p>
+            </div>
+        </div>
+
+        <!-- Topic-Level Sentiment -->
+        <div class="slide" id="sentiment-topic">
+            <h2>3. Topic-Level Sentiment Aggregation</h2>
+            
+            <h3>3.1 Weighted Aggregation Strategy</h3>
+            
+            <div class="info-box">
+                <h4>🎯 Weighting Philosophy</h4>
+                <p>The system uses a sophisticated multi-factor weighting approach:</p>
+                <ul>
+                    <li><strong>Source Type Weight:</strong> Provided sources (0.7) vs. Supplementary sources (0.3)</li>
+                    <li><strong>Trust Score Multiplier:</strong> Higher trust = higher influence on final score</li>
+                    <li><strong>Quality Factors:</strong> Content consistency, factual verifiability, bias detection</li>
+                </ul>
+            </div>
+
+            <div class="mermaid">
+                graph TB
+                    A[All Article Windows] --> B{Group by Article}
+                    B --> C[Calculate Article Avg Sentiment]
+                    B --> D[Calculate Article Avg Trust]
+                    C --> E{Source Type}
+                    D --> E
+                    E -->|Provided| F[Weight = 0.7 × Trust]
+                    E -->|Supplementary| G[Weight = 0.3 × Trust]
+                    F --> H[Weighted Sum]
+                    G --> H
+                    H --> I[Divide by Total Weights]
+                    I --> J[Final Topic Sentiment Score]
+                    
+                    style A fill:#667eea,color:#fff
+                    style J fill:#4caf50,color:#fff
+                    style F fill:#ff9800,color:#fff
+                    style G fill:#2196F3,color:#fff
+            </div>
+
+            <h3>3.2 Step-by-Step Calculation Process</h3>
+            
+            <div class="grid-2">
+                <div class="card">
+                    <h4>Step 1: Article-Level Aggregation</h4>
+                    <ol>
+                        <li>Group windows by article_id</li>
+                        <li>Calculate average sentiment per article</li>
+                        <li>Calculate average trust per article</li>
+                    </ol>
+                </div>
+                <div class="card">
+                    <h4>Step 2: Weight Calculation</h4>
+                    <ol>
+                        <li>Determine source type weight (0.7 or 0.3)</li>
+                        <li>Multiply by trust score</li>
+                        <li>Result: w<sub>i</sub> = type_weight × trust</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <h4>Step 3: Final Aggregation</h4>
+                <ol>
+                    <li>Multiply each article's sentiment by its weight</li>
+                    <li>Sum all weighted sentiments (numerator)</li>
+                    <li>Sum all weights (denominator)</li>
+                    <li>Divide numerator by denominator</li>
+                    <li>Round to integer for final score</li>
+                </ol>
+            </div>
+
+            <div class="warning-box">
+                <h4>⚠️ Conflict Detection</h4>
+                <p>If the difference between average provided sentiment and average supplementary sentiment exceeds <strong>30 points</strong>, a conflict warning is raised:</p>
+                <ul>
+                    <li>Confidence interval is calculated for both source types</li>
+                    <li>Warning message is added to topic description</li>
+                    <li>Users are advised to interpret results with caution</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Sentiment Formula -->
+        <div class="slide" id="sentiment-formula">
+            <h2>4. Sentiment Score Mathematical Formula</h2>
+            
+            <h3>4.1 Core Formula</h3>
+            
+            <div class="formula-box">
+                <strong>Final Sentiment Score Formula:</strong><br><br>
+                
+                S_final = Σ(w_i × S_i) / Σ(w_i)<br><br>
+                
+                Where:<br>
+                • S_final = Final topic sentiment score<br>
+                • S_i = Average sentiment score of article i<br>
+                • w_i = Weight of article i<br>
+            </div>
+
+            <h3>4.2 Weight Calculation Formula</h3>
+            
+            <div class="formula-box">
+                <strong>Weight Formula (per article):</strong><br><br>
+                
+                w_i = w_type × T_i<br><br>
+                
+                Where:<br>
+                • w_type = 0.7 (if provided source) or 0.3 (if supplementary)<br>
+                • T_i = Average trust score of article i (0-100)<br>
+            </div>
+
+            <h3 class="collapsible" onclick="toggleCollapsible(this)">4.3 Detailed Example Calculation</h3>
+            
+            <div class="collapsible-content">
+                <div class="example-box">
+                    <h4>📊 Example: Topic with 4 subtopics</h4>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Subtopic</th>
+                            <th>Type</th>
+                            <th>Avg Sentiment (S_i)</th>
+                            <th>Avg Trust (T_i)</th>
+                            <th>Type Weight</th>
+                            <th>Weight (w_i)</th>
+                            <th>w_i × S_i</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Subtopic 1</td>
+                            <td>Provided</td>
+                            <td>75</td>
+                            <td>85</td>
+                            <td>0.7</td>
+                            <td>0.7 × 85 = 59.5</td>
+                            <td>59.5 × 75 = 4462.5</td>
+                        </tr>
+                        <tr>
+                            <td>Subtopic 2</td>
+                            <td>Provided</td>
+                            <td>68</td>
+                            <td>78</td>
+                            <td>0.7</td>
+                            <td>0.7 × 78 = 54.6</td>
+                            <td>54.6 × 68 = 3712.8</td>
+                        </tr>
+                        <tr>
+                            <td>Subtopic 3</td>
+                            <td>Supplementary</td>
+                            <td>82</td>
+                            <td>72</td>
+                            <td>0.3</td>
+                            <td>0.3 × 72 = 21.6</td>
+                            <td>21.6 × 82 = 1771.2</td>
+                        </tr>
+                        <tr>
+                            <td>Subtopic 4</td>
+                            <td>Supplementary</td>
+                            <td>55</td>
+                            <td>65</td>
+                            <td>0.3</td>
+                            <td>0.3 × 65 = 19.5</td>
+                            <td>19.5 × 55 = 1072.5</td>
+                        </tr>
+                        <tr style="background: #e8f5e9; font-weight: bold;">
+                            <td colspan="6">Total Weight (Σw_i)</td>
+                            <td>155.2</td>
+                        </tr>
+                        <tr style="background: #e8f5e9; font-weight: bold;">
+                            <td colspan="6">Total Weighted Sentiment (Σw_i × S_i)</td>
+                            <td>11019.0</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="success-box" style="margin-top: 20px;">
+                    <h4>✅ Final Calculation</h4>
+                    <p style="font-size: 1.2em; margin: 15px 0;">
+                        <strong>S_final = 11019.0 / 155.2 = 71.0</strong>
+                    </p>
+                    <p>
+                        <strong>Classification:</strong> <span class="highlight">Positive</span> (61-80 range)
+                    </p>
+                    <p style="margin-top: 10px;">
+                        <strong>Interpretation:</strong> The topic shows a generally positive sentiment. 
+                        Provided sources (weighted more heavily) had an average sentiment of 71.5, 
+                        while supplementary sources averaged 68.5. No significant conflict detected.
+                    </p>
+                </div>
+            </div>
+            </div>
+
+            <h3>4.4 Code Implementation</h3>
+            
+            <div class="code-block">
+<span class="comment"># From sentiment_api.py lines 715-786</span>
+
+w_prov_per_source = <span class="number">0.7</span>  <span class="comment"># Weight for provided sources</span>
+w_supp_per_source = <span class="number">0.3</span>  <span class="comment"># Weight for supplementary sources</span>
+
+sent_num = <span class="number">0.0</span>      <span class="comment"># Numerator: Σ(w_i × S_i)</span>
+sent_denom = <span class="number">0.0</span>    <span class="comment"># Denominator: Σ(w_i)</span>
+
+<span class="keyword">for</span> article_list, w_type <span class="keyword">in</span> [(provided_articles, w_prov_per_source), 
+                              (supplementary_articles, w_supp_per_source)]:
+    <span class="keyword">for</span> article <span class="keyword">in</span> article_list:
+        sections = grouped_windows.get(article.id, [])
+        <span class="keyword">if not</span> sections:
+            <span class="keyword">continue</span>
+        
+        <span class="comment"># Calculate average sentiment and trust for this article</span>
+        sents = [s.sentiment_score <span class="keyword">or</span> <span class="number">50</span> <span class="keyword">for</span> s <span class="keyword">in</span> sections]
+        trusts = [s.trust_score <span class="keyword">or</span> <span class="number">50.0</span> <span class="keyword">for</span> s <span class="keyword">in</span> sections]
+        avg_sent = sum(sents) / len(sents)
+        avg_trust = sum(trusts) / len(trusts)
+        
+        <span class="comment"># Calculate weight for this article</span>
+        w_i_sent = w_type * avg_trust
+        
+        <span class="comment"># Add to numerator and denominator</span>
+        sent_num += w_i_sent * avg_sent
+        sent_denom += w_i_sent
+
+<span class="comment"># Final calculation</span>
+<span class="keyword">if</span> sent_denom > <span class="number">0</span>:
+    final_sentiment_score = <span class="keyword">int</span>(sent_num / sent_denom)
+<span class="keyword">else</span>:
+    final_sentiment_score = <span class="number">50</span>  <span class="comment"># Default neutral</span>
+            </div>
+        </div>
+
+        <!-- Clustering System -->
+        <div class="slide" id="clustering">
+            <h2>5. Subtopic Clustering System</h2>
+            
+            <h3>5.1 Overview</h3>
+            
+            <div class="info-box">
+                <h4>🎯 Clustering Goals</h4>
+                <ul>
+                    <li>Group similar subtopics across multiple articles</li>
+                    <li>Reduce redundancy in subtopic representation</li>
+                    <li>Create meaningful hierarchical organization</li>
+                    <li>Generate human-readable cluster names using AI</li>
+                </ul>
+            </div>
+
+            <h3>5.2 Three-Phase Clustering Architecture</h3>
+            
+            <div class="mermaid">
+                graph TB
+                    A[Raw Subtopic Names<br/>from all articles] --> B[Phase 1: Semantic Clustering]
+                    B --> C[Sentence Embeddings<br/>Qwen3-Embedding-8B]
+                    C --> D[Bayesian Gaussian Mixture<br/>n_components=7]
+                    D --> E[Initial Clusters]
+                    E --> F[Phase 2: Cluster Naming]
+                    F --> G[LLM Analysis<br/>GPT-4.1-mini]
+                    G --> H[Named Clusters with Explanations]
+                    H --> I[Phase 3: Consolidation]
+                    I --> J[LLM Deduplication<br/>GPT-4.1]
+                    J --> K[Final Consolidated Subtopics]
+                    
+                    style A fill:#667eea,color:#fff
+                    style K fill:#4caf50,color:#fff
+                    style C fill:#2196F3,color:#fff
+                    style G fill:#ff9800,color:#fff
+                    style J fill:#764ba2,color:#fff
+            </div>
+
+            <h3>5.3 Phase 1: Semantic Clustering</h3>
+            
+            <div class="card">
+                <h4>🔍 Embedding Model: Qwen3-Embedding-8B</h4>
+                <ul>
+                    <li><strong>Purpose:</strong> Convert subtopic names to dense vector representations</li>
+                    <li><strong>Provider:</strong> Nebius via HuggingFace Inference API</li>
+                    <li><strong>Output:</strong> High-dimensional embeddings capturing semantic meaning</li>
+                </ul>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <h4>📊 Clustering Model: Bayesian Gaussian Mixture</h4>
+                <ul>
+                    <li><strong>Components:</strong> 7 (automatically determines optimal number)</li>
+                    <li><strong>Method:</strong> Probabilistic clustering with soft assignments</li>
+                    <li><strong>Advantage:</strong> Handles uncertainty, provides cluster weights</li>
+                    <li><strong>Output:</strong> Cluster assignments + confidence weights</li>
+                </ul>
+            </div>
+
+            <div class="code-block">
+<span class="comment"># From topic.py lines 210-218</span>
+
+sentence_model = HuggingFaceInferenceSentenceTransformer(
+    model_name=<span class="string">"Qwen/Qwen3-Embedding-8B"</span>,
+    provider=<span class="string">"nebius"</span>,
+    api_key=os.getenv(<span class="string">"HF_TOKEN"</span>)
+)
+
+clustering_model = BayesianGaussianMixture(n_components=<span class="number">7</span>)
+semantic_clustering = SemanticClustering(sentence_model, clustering_model)
+subtopic_names = sections[<span class="string">"name"</span>]
+cluster_mapping = semantic_clustering.fit_predict(subtopic_names.tolist())
+            </div>
+
+            <h3>5.4 Phase 2: AI-Powered Cluster Naming</h3>
+            
+            <div class="info-box">
+                <h4>🤖 LLM-Based Representation</h4>
+                <p>Each cluster is analyzed by GPT-4.1-mini to generate:</p>
+                <ul>
+                    <li><strong>Grouping Title:</strong> A concise, descriptive name for the cluster</li>
+                    <li><strong>Common Themes:</strong> What connects the subtopics</li>
+                    <li><strong>Conceptual Relationship:</strong> How they relate to each other</li>
+                    <li><strong>Explanation:</strong> Why this grouping makes sense</li>
+                </ul>
+            </div>
+
+            <div class="example-box">
+                <h4>📝 Example: Cluster Naming</h4>
+                <p><strong>Input Subtopics in Cluster:</strong></p>
+                <ul>
+                    <li>"AI in Medical Diagnosis"</li>
+                    <li>"Machine Learning for Patient Care"</li>
+                    <li>"Neural Networks in Healthcare"</li>
+                </ul>
+                <p><strong>LLM Output:</strong></p>
+                <div class="success-box" style="margin-top: 10px;">
+                    <p><strong>Grouping Title:</strong> "AI Applications in Healthcare"</p>
+                    <p><strong>Common Themes:</strong> "All subtopics focus on artificial intelligence and machine learning technologies being applied to improve healthcare delivery and medical outcomes."</p>
+                    <p><strong>Explanation:</strong> "This grouping captures the broad application of AI technologies across different healthcare contexts, from diagnosis to patient care."</p>
+                </div>
+            </div>
+
+            <h3>5.5 Phase 3: Consolidation</h3>
+            
+            <div class="warning-box">
+                <h4>🔄 Deduplication Process</h4>
+                <p>GPT-4.1 analyzes cluster names to identify and merge:</p>
+                <ul>
+                    <li><strong>Lexically similar:</strong> Same words, different order</li>
+                    <li><strong>Semantically equivalent:</strong> Different words, same meaning</li>
+                    <li><strong>Conceptual overlaps:</strong> Closely related concepts</li>
+                    <li><strong>Scope mismatches:</strong> One encompasses another</li>
+                </ul>
+            </div>
+
+            <div class="code-block">
+<span class="comment"># From topic.py lines 67-124 (simplified)</span>
+
+consolidation_prompt = <span class="string">"""
+You are an expert taxonomist. Analyze grouped sub-topic titles 
+and consolidate duplicates or near-duplicates.
+
+Main Topic: {TOPIC}
+Grouped Sub-topic Titles: {SUB_TOPICS}
+
+For each potential consolidation, evaluate:
+- Conceptual Overlap Score (0-100%)
+- Terminology Consistency
+- Scope Alignment
+- Audience Impact
+"""</span>
+
+response = ai_manager.call_structured(
+    prompt, 
+    model_name=<span class="string">"gpt-4.1"</span>,
+    response_model=ConsolidationResponse
+)
+
+<span class="comment"># Maps original titles to consolidated titles</span>
+<span class="keyword">for</span> category <span class="keyword">in</span> response.categories:
+    <span class="keyword">for</span> title <span class="keyword">in</span> category.original_titles:
+        name_consolidations[title] = category.consolidated_title
+            </div>
+        </div>
+
+        <!-- Clustering Process Flow -->
+        <div class="slide" id="clustering-process">
+            <h2>6. Clustering Process Flow</h2>
+            
+            <h3>6.1 Complete Pipeline Diagram</h3>
+            
+            <div class="mermaid">
+                sequenceDiagram
+                    participant A as Articles/Windows
+                    participant B as Section Extraction
+                    participant C as Embedding Model
+                    participant D as BGM Clustering
+                    participant E as LLM Naming
+                    participant F as LLM Consolidation
+                    participant G as Final Subtopics
+                    
+                    A->>B: Extract all subtopic names
+                    B->>C: Convert to embeddings
+                    Note over C: Qwen3-Embedding-8B<br/>Semantic vectors
+                    C->>D: Cluster embeddings
+                    Note over D: Bayesian Gaussian Mixture<br/>7 components
+                    D->>E: Send cluster groups
+                    Note over E: GPT-4.1-mini<br/>Generate names + explanations
+                    E->>F: Named clusters
+                    Note over F: GPT-4.1<br/>Consolidate duplicates
+                    F->>G: Final subtopics with weights
+                    Note over G: Ready for aggregation
+            </div>
+
+            <h3>6.2 Data Flow Example</h3>
+            
+            <div class="example-box">
+                <h4>📊 Full Pipeline Example</h4>
+                
+                <div style="margin: 20px 0;">
+                    <h4 style="color: #667eea;">Step 1: Input (50 subtopic mentions across 10 articles)</h4>
+                    <div class="code-block">
+[
+  "AI in Healthcare",
+  "Machine Learning for Diagnosis", 
+  "Healthcare AI Applications",
+  "AI Medical Tools",
+  "Data Privacy in AI",
+  "AI Security Concerns",
+  "Privacy Protection",
+  "Future of AI",
+  "AI Opportunities",
+  ...
+]
+                    </div>
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <h4 style="color: #667eea;">Step 2: Semantic Clustering (7 clusters formed)</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Cluster ID</th>
+                                <th>Members</th>
+                                <th>Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0</td>
+                                <td>15 subtopics (AI applications)</td>
+                                <td>0.30</td>
+                            </tr>
+                            <tr>
+                                <td>1</td>
+                                <td>12 subtopics (Privacy concerns)</td>
+                                <td>0.24</td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>8 subtopics (Future trends)</td>
+                                <td>0.16</td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td>7 subtopics (Technical challenges)</td>
+                                <td>0.14</td>
+                            </tr>
+                            <tr>
+                                <td>4</td>
+                                <td>5 subtopics (Regulatory issues)</td>
+                                <td>0.10</td>
+                            </tr>
+                            <tr>
+                                <td>5</td>
+                                <td>2 subtopics (Cost analysis)</td>
+                                <td>0.04</td>
+                            </tr>
+                            <tr>
+                                <td>6</td>
+                                <td>1 subtopic (Other)</td>
+                                <td>0.02</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <h4 style="color: #667eea;">Step 3: LLM Naming (Generated titles)</h4>
+                    <ul>
+                        <li><strong>Cluster 0:</strong> "AI Applications in Healthcare and Medicine"</li>
+                        <li><strong>Cluster 1:</strong> "Data Privacy and Security Concerns"</li>
+                        <li><strong>Cluster 2:</strong> "Future AI Opportunities and Trends"</li>
+                        <li><strong>Cluster 3:</strong> "Technical Challenges and Limitations"</li>
+                        <li><strong>Cluster 4:</strong> "Regulatory and Legal Issues"</li>
+                        <li><strong>Cluster 5:</strong> "Economic and Cost Considerations"</li>
+                        <li><strong>Cluster 6:</strong> "Miscellaneous Topics"</li>
+                    </ul>
+                </div>
+
+                <div style="margin: 20px 0;">
+                    <h4 style="color: #667eea;">Step 4: Consolidation (Final output)</h4>
+                    <div class="success-box">
+                        <p><strong>5 Final Subtopics</strong> (Clusters 5 & 6 merged into 3 as "Implementation Barriers")</p>
+                        <ol>
+                            <li>AI Applications in Healthcare and Medicine (weight: 0.30)</li>
+                            <li>Data Privacy and Security Concerns (weight: 0.24)</li>
+                            <li>Future AI Opportunities and Trends (weight: 0.16)</li>
+                            <li>Implementation Barriers (weight: 0.20)</li>
+                            <li>Regulatory and Legal Issues (weight: 0.10)</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <h3>6.3 Aggregated Statistics per Subtopic</h3>
+            
+            <div class="code-block">
+<span class="comment"># From sentiment_api.py lines 935-944</span>
+
+<span class="comment"># B. Aggregate Statistics for each final subtopic cluster</span>
+final_subtopics[[<span class="string">"confidence"</span>, <span class="string">"trust_score"</span>, <span class="string">"sentiment_score"</span>]] = 
+    sections_df.groupby(subtopic_mapping).apply(
+        <span class="keyword">lambda</span> cluster: cluster[[<span class="string">"confidence"</span>, <span class="string">"trust_score"</span>, <span class="string">"sentiment_score"</span>]]
+            .multiply(cluster[<span class="string">"priority_weight"</span>], axis=<span class="number">0</span>)
+            .sum() / cluster[<span class="string">"priority_weight"</span>].sum()
+    )
+
+<span class="comment"># Apply sentiment classification</span>
+final_subtopics[<span class="string">"sentiment_class"</span>] = 
+    final_subtopics[<span class="string">"sentiment_score"</span>].apply(calculate_sentiment_class)
+
+<span class="comment"># Count how many sections merged into each subtopic</span>
+final_subtopics[<span class="string">"sections_count"</span>] = 
+    sections_df.groupby(subtopic_mapping).size()
+
+<span class="comment"># Calculate ratio of provided vs supplementary sources</span>
+final_subtopics[<span class="string">"provided_ratio"</span>] = 
+    sections_df[<span class="string">"provided_ratio"</span>].groupby(subtopic_mapping).mean()
+            </div>
+
+            <div class="info-box">
+                <h4>📊 Final Subtopic Output Structure</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>name</td>
+                            <td>string</td>
+                            <td>Consolidated subtopic title</td>
+                        </tr>
+                        <tr>
+                            <td>weight</td>
+                            <td>float</td>
+                            <td>Probability weight from BGM model</td>
+                        </tr>
+                        <tr>
+                            <td>confidence</td>
+                            <td>float</td>
+                            <td>Weighted average of subtopic confidence scores</td>
+                        </tr>
+                        <tr>
+                            <td>sentiment_score</td>
+                            <td>int</td>
+                            <td>Weighted average sentiment (0-100)</td>
+                        </tr>
+                        <tr>
+                            <td>sentiment_class</td>
+                            <td>string</td>
+                            <td>Classification (Very Positive to Very Negative)</td>
+                        </tr>
+                        <tr>
+                            <td>trust_score</td>
+                            <td>float</td>
+                            <td>Weighted average trust score</td>
+                        </tr>
+                        <tr>
+                            <td>sections_count</td>
+                            <td>int</td>
+                            <td>Number of original sections merged</td>
+                        </tr>
+                        <tr>
+                            <td>provided_ratio</td>
+                            <td>float</td>
+                            <td>Ratio of provided sources (0.0-1.0)</td>
+                        </tr>
+                        <tr>
+                            <td>subtopic_explanation</td>
+                            <td>string</td>
+                            <td>AI-generated explanation of the subtopic</td>
+                        </tr>
+                        <tr>
+                            <td>clustering_explanation</td>
+                            <td>string</td>
+                            <td>Why these sections were grouped together</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Real-World Examples (removed by request) -->
+
+        <!-- Summary -->
+        <div class="slide">
+            <h2>📝 Summary</h2>
+            
+            <h3>Key Takeaways: Sentiment Score Calculation</h3>
+            
+            <div class="grid-2">
+                <div class="card">
+                    <h4>Article Level</h4>
+                    <ul>
+                        <li>Window-based analysis (BERT/LLM)</li>
+                        <li>Each window gets sentiment 0-100</li>
+                        <li>Article sentiment = average of windows</li>
+                        <li>Classification: 5 categories</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>Topic Level</h4>
+                    <ul>
+                        <li>Weighted by source type (0.7 / 0.3)</li>
+                        <li>Multiplied by trust scores</li>
+                        <li>Conflict detection (±30 threshold)</li>
+                        <li>Final score: weighted average</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 30px;">Key Takeaways: Clustering</h3>
+            
+            <div class="grid-2">
+                <div class="card">
+                    <h4>Technical Pipeline</h4>
+                    <ul>
+                        <li>Semantic embeddings (Qwen3-8B)</li>
+                        <li>Bayesian Gaussian Mixture (7 components)</li>
+                        <li>LLM naming (GPT-4.1-mini)</li>
+                        <li>LLM consolidation (GPT-4.1)</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>Output Benefits</h4>
+                    <ul>
+                        <li>Reduced redundancy (60-80%)</li>
+                        <li>Meaningful hierarchies</li>
+                        <li>Weighted by importance</li>
+                        <li>Human-readable explanations</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="success-box" style="margin-top: 30px;">
+                <h3>🎯 Final Formula Reference</h3>
+                <div class="formula-box" style="margin-top: 15px;">
+                    <strong>Sentiment Score:</strong><br>
+                    S_final = Σ(w_type × T_i × S_i) / Σ(w_type × T_i)<br><br>
+                    
+                    <strong>Where:</strong><br>
+                    • w_type = 0.7 (provided) or 0.3 (supplementary)<br>
+                    • T_i = Trust score of article i<br>
+                    • S_i = Sentiment score of article i<br>
+                </div>
+            </div>
+
+            <div class="info-box" style="margin-top: 20px;">
+                <h3>📚 Code References</h3>
+                <ul>
+                    <li><strong>Sentiment Aggregation:</strong> sentiment_api.py lines 715-786</li>
+                    <li><strong>Classification:</strong> sentiment_api.py lines 454-465, 857-866</li>
+                    <li><strong>Clustering Pipeline:</strong> topic.py lines 188-271</li>
+                    <li><strong>Consolidation:</strong> topic.py lines 36-136</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#667eea',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#764ba2',
+                lineColor: '#764ba2',
+                secondaryColor: '#764ba2',
+                tertiaryColor: '#f5f7fa'
+            }
+        });
+
+        // Progress Bar
+        function updateProgressBar() {
+            const scrollTop = window.pageYOffset;
+            const docHeight = document.body.scrollHeight - window.innerHeight;
+            const scrollPercent = (scrollTop / docHeight) * 100;
+            document.getElementById('progressBar').style.width = scrollPercent + '%';
+        }
+
+        // Back to Top Button
+        function toggleBackToTop() {
+            const backToTop = document.getElementById('backToTop');
+            if (window.pageYOffset > 300) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+        }
+
+        // TOC Toggle
+        function toggleTOC() {
+            const tocContent = document.getElementById('tocContent');
+            tocContent.classList.toggle('collapsed');
+        }
+
+        // Collapsible Sections
+        function toggleCollapsible(element) {
+            element.classList.toggle('active');
+            const content = element.nextElementSibling;
+            content.classList.toggle('active');
+        }
+
+        // Mobile Menu Toggle
+        function toggleMobileMenu() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('active');
+        }
+
+        // Smooth scroll for navigation links
+        function smoothScrollTo(target) {
+            const element = document.querySelector(target);
+            if (element) {
+                const navHeight = document.querySelector('.nav-menu').offsetHeight;
+                const elementPosition = element.offsetTop - navHeight - 20;
+                window.scrollTo({
+                    top: elementPosition,
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Progress bar and back to top
+            window.addEventListener('scroll', function() {
+                updateProgressBar();
+                toggleBackToTop();
+            });
+
+            // Mobile menu toggle
+            document.getElementById('mobileToggle').addEventListener('click', toggleMobileMenu);
+
+            // Back to top button
+            document.getElementById('backToTop').addEventListener('click', function() {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            // Navigation links smooth scroll
+            document.querySelectorAll('.nav-links a, .toc a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const target = this.getAttribute('href');
+                    if (target.startsWith('#')) {
+                        smoothScrollTo(target);
+                        // Close mobile menu if open
+                        document.getElementById('navLinks').classList.remove('active');
+                    }
+                });
+            });
+
+            // Close mobile menu when clicking outside
+            document.addEventListener('click', function(e) {
+                const navLinks = document.getElementById('navLinks');
+                const mobileToggle = document.getElementById('mobileToggle');
+                if (!navLinks.contains(e.target) && !mobileToggle.contains(e.target)) {
+                    navLinks.classList.remove('active');
+                }
+            });
+
+            // Highlight active section in navigation
+            function highlightActiveSection() {
+                const sections = document.querySelectorAll('.slide[id]');
+                const navLinks = document.querySelectorAll('.nav-links a');
+                
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop - 100;
+                    if (window.pageYOffset >= sectionTop) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href') === '#' + current) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            window.addEventListener('scroll', highlightActiveSection);
+        });
+    </script>
+</body>
+</html>
+
