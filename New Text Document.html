@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentiment Analysis & Clustering System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .slide {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin: 20px 0;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #764ba2;
+            font-size: 2em;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #667eea;
+            font-size: 1.5em;
+            margin: 20px 0 10px 0;
+        }
+
+        .diagram {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            border: 2px solid #e0e0e0;
+        }
+
+        .flow-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .flow-step {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            min-width: 300px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .flow-step:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .arrow {
+            font-size: 2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateX(10px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .formula {
+            background: #2d3748;
+            color: #68d391;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+            font-size: 1.1em;
+        }
+
+        .highlight {
+            background: #ffd700;
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .sentiment-scale {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .sentiment-range {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .very-negative { background: #e53e3e; }
+        .negative { background: #ed8936; }
+        .neutral { background: #ecc94b; color: #333; }
+        .positive { background: #48bb78; }
+        .very-positive { background: #38a169; }
+
+        .trust-components {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .trust-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #667eea;
+            text-align: center;
+        }
+
+        .trust-percentage {
+            font-size: 2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .clustering-diagram {
+            position: relative;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            min-height: 400px;
+        }
+
+        .cluster-node {
+            background: white;
+            border: 3px solid #667eea;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .cluster-node:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .code-block {
+            background: #1a202c;
+            color: #68d391;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+
+        .metric-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .metric-value {
+            font-size: 3em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            margin: 30px 0;
+            position: relative;
+        }
+
+        .timeline-marker {
+            background: #667eea;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        .timeline-content {
+            background: #f5f7fa;
+            padding: 20px;
+            border-radius: 10px;
+            flex-grow: 1;
+            border-left: 3px solid #667eea;
+        }
+
+        .weight-diagram {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .weight-bar {
+            height: 40px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .weight-bar:hover {
+            transform: scaleX(1.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        tr:hover {
+            background: #f5f7fa;
+        }
+
+        .nav-buttons {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-button {
+            background: #667eea;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1em;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .nav-button:hover {
+            background: #764ba2;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin: 5px;
+        }
+
+        .badge-primary { background: #667eea; color: white; }
+        .badge-success { background: #48bb78; color: white; }
+        .badge-warning { background: #ed8936; color: white; }
+        .badge-info { background: #4299e1; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Slide 1: Title -->
+        <div class="slide">
+            <h1>🎯 Sentiment Analysis & Clustering System</h1>
+            <div style="text-align: center; margin-top: 30px;">
+                <h3>Advanced Multi-Factor Sentiment Scoring & Semantic Clustering</h3>
+                <p style="font-size: 1.2em; margin-top: 20px; color: #666;">
+                    A comprehensive approach to analyzing article sentiment and organizing content through intelligent clustering
+                </p>
+                <div style="margin-top: 40px;">
+                    <span class="badge badge-primary">AI-Powered</span>
+                    <span class="badge badge-success">Multi-Factor Analysis</span>
+                    <span class="badge badge-warning">Real-Time Processing</span>
+                    <span class="badge badge-info">Semantic Understanding</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: System Overview -->
+        <div class="slide">
+            <h2>📊 System Architecture Overview</h2>
+            <div class="diagram">
+                <div class="flow-container">
+                    <div class="flow-step">
+                        <strong>1. Article Collection</strong><br>
+                        Provided Sources (70%) + Supplementary Sources (30%)
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>2. Content Analysis</strong><br>
+                        Window-based text segmentation & processing
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>3. Sentiment Scoring</strong><br>
+                        Multi-factor weighted calculation
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>4. Semantic Clustering</strong><br>
+                        AI-powered topic grouping & consolidation
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>5. Trust Analysis</strong><br>
+                        6-component sophisticated scoring
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Sentiment Score Calculation -->
+        <div class="slide">
+            <h2>🎭 Sentiment Score Calculation Logic</h2>
+            
+            <h3>Weighted Aggregation Formula</h3>
+            <div class="formula">
+final_sentiment = Σ(w<sub>i</sub> × sentiment<sub>i</sub>) / Σ(w<sub>i</sub>)
+
+where:
+  w<sub>i</sub> = source_type_weight × trust_score<sub>i</sub>
+  
+  source_type_weight = {
+    0.7 for provided sources
+    0.3 for supplementary sources
+  }
+            </div>
+
+            <h3>Sentiment Classification Ranges</h3>
+            <div class="sentiment-scale">
+                <div class="sentiment-range very-negative">
+                    Very Negative<br>0-20
+                </div>
+                <div class="sentiment-range negative">
+                    Negative<br>21-40
+                </div>
+                <div class="sentiment-range neutral">
+                    Neutral<br>41-60
+                </div>
+                <div class="sentiment-range positive">
+                    Positive<br>61-80
+                </div>
+                <div class="sentiment-range very-positive">
+                    Very Positive<br>81-100
+                </div>
+            </div>
+
+            <h3>Source Type Weighting Strategy</h3>
+            <div class="weight-diagram">
+                <div style="flex: 1;">
+                    <strong>Provided Sources:</strong>
+                    <div class="weight-bar" style="width: 70%;">70%</div>
+                </div>
+                <div style="flex: 1;">
+                    <strong>Supplementary Sources:</strong>
+                    <div class="weight-bar" style="width: 30%;">30%</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <strong>💡 Key Insight:</strong> Each article's sentiment is weighted by both its source type AND its trust score, 
+                ensuring that more reliable sources have greater influence on the final score.
+            </div>
+        </div>
+
+        <!-- Slide 4: Trust Score Components -->
+        <div class="slide">
+            <h2>🛡️ Sophisticated Trust Score Calculation</h2>
+            
+            <p style="margin-bottom: 20px; font-size: 1.1em;">
+                Trust scores are calculated using <span class="highlight">6 independent components</span> with weighted aggregation:
+            </p>
+
+            <div class="trust-components">
+                <div class="trust-card">
+                    <div class="trust-percentage">30%</div>
+                    <h4>Source Credibility</h4>
+                    <p>MOZ API metrics (Domain Authority, Page Authority, Spam Score)</p>
+                </div>
+                <div class="trust-card">
+                    <div class="trust-percentage">25%</div>
+                    <h4>Content Consistency</h4>
+                    <p>Text length & structure analysis (optimal: 300-2000 words)</p>
+                </div>
+                <div class="trust-card">
+                    <div class="trust-percentage">20%</div>
+                    <h4>Language Quality</h4>
+                    <p>Sentence structure & average length (optimal: 10-25 words)</p>
+                </div>
+                <div class="trust-card">
+                    <div class="trust-percentage">15%</div>
+                    <h4>Factual Verifiability</h4>
+                    <p>Citation detection & reference density</p>
+                </div>
+                <div class="trust-card">
+                    <div class="trust-percentage">10%</div>
+                    <h4>Bias Detection</h4>
+                    <p>Domain reputation analysis</p>
+                </div>
+            </div>
+
+            <h3>Trust Score Formula</h3>
+            <div class="formula">
+trust_score = source_credibility × 0.30 +
+              content_consistency × 0.25 +
+              language_quality × 0.20 +
+              factual_verifiability × 0.15 +
+              bias_detection × 0.10
+            </div>
+
+            <div class="code-block">
+# Example: Source Credibility Calculation via MOZ API
+success, moz_data = moz_analyzer.get_trust_score(article.source_url)
+if success:
+    da = moz_data.get('domain_authority', 0)
+    pa = moz_data.get('page_authority', 0)
+    spam = moz_data.get('spam_score', 100)
+    link_prop = moz_data.get('link_propensity', 0)
+    source_credibility = (da × 0.4 + pa × 0.3 + 
+                         spam × 0.2 + link_prop × 0.1)
+            </div>
+        </div>
+
+        <!-- Slide 5: Multi-Factor Trust Weighting -->
+        <div class="slide">
+            <h2>⚖️ Multi-Factor Trust Weighting</h2>
+            
+            <p style="margin-bottom: 20px; font-size: 1.1em;">
+                Final trust scores incorporate <span class="highlight">4 additional factors</span> beyond base calculation:
+            </p>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-marker">1</div>
+                    <div class="timeline-content">
+                        <h4>Base Weight (Source Type)</h4>
+                        <p>Starting weight from source type (0.7 for provided, 0.3 for supplementary)</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker">2</div>
+                    <div class="timeline-content">
+                        <h4>Quality Factor</h4>
+                        <p>Normalized sophisticated trust score (0-1 scale)</p>
+                        <div class="formula">quality_factor = sophisticated_trust_score / 100.0</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker">3</div>
+                    <div class="timeline-content">
+                        <h4>Consistency Factor</h4>
+                        <p>Based on variance of trust scores across article sections</p>
+                        <div class="formula">consistency_factor = 1.0 - min(0.2, stdev(trusts) / 50.0)</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker">4</div>
+                    <div class="timeline-content">
+                        <h4>Content Depth Factor</h4>
+                        <p>Bonus for articles with multiple analyzed sections (up to 15% boost)</p>
+                        <div class="formula">content_factor = min(1.15, 1.0 + (num_sections - 1) × 0.03)</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Final Weight Calculation</h3>
+            <div class="formula">
+w<sub>i</sub> = base_weight × quality_factor × consistency_factor × content_factor
+
+trust_score_final = Σ(w<sub>i</sub> × sophisticated_trust<sub>i</sub>) / Σ(w<sub>i</sub>)
+            </div>
+        </div>
+
+        <!-- Slide 6: Clustering System -->
+        <div class="slide">
+            <h2>🔗 Semantic Clustering System</h2>
+            
+            <h3>Clustering Pipeline</h3>
+            <div class="diagram">
+                <div class="flow-container">
+                    <div class="flow-step">
+                        <strong>Step 1: Embedding Generation</strong><br>
+                        Transform subtopic names using Qwen3-Embedding-8B model
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>Step 2: Bayesian Gaussian Mixture</strong><br>
+                        Cluster embeddings into 7 components with probabilistic assignment
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>Step 3: Cluster Representation</strong><br>
+                        Generate descriptive titles using GPT-4.1-mini
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>Step 4: Consolidation</strong><br>
+                        Merge similar clusters using GPT-4.1
+                    </div>
+                    <div class="arrow">↓</div>
+                    <div class="flow-step">
+                        <strong>Step 5: Statistical Aggregation</strong><br>
+                        Calculate weighted metrics per final cluster
+                    </div>
+                </div>
+            </div>
+
+            <h3>Key Technologies</h3>
+            <div class="grid-3">
+                <div class="card">
+                    <h4>🤖 Qwen3-Embedding-8B</h4>
+                    <p>High-quality sentence embeddings for semantic similarity</p>
+                </div>
+                <div class="card">
+                    <h4>📊 Bayesian GMM</h4>
+                    <p>Probabilistic clustering with automatic component selection</p>
+                </div>
+                <div class="card">
+                    <h4>🧠 GPT-4.1 Series</h4>
+                    <p>AI-powered cluster naming and consolidation</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Clustering Algorithm Details -->
+        <div class="slide">
+            <h2>🔬 Clustering Algorithm Deep Dive</h2>
+            
+            <h3>1. Semantic Clustering Class</h3>
+            <div class="code-block">
+class SemanticClustering:
+    def __init__(self, sentence_model, clustering):
+        self.sentence_model = sentence_model  # Qwen3-Embedding-8B
+        self.clustering = clustering          # BayesianGaussianMixture
+    
+    def fit_predict(self, X):
+        # Convert text to embeddings
+        embeddings = self.sentence_model.encode(X)
+        # Cluster embeddings
+        return self.clustering.fit_predict(embeddings)
+            </div>
+
+            <h3>2. Cluster Representation Generation</h3>
+            <div class="code-block">
+# For each cluster, generate a descriptive title
+for cluster_id in unique_clusters:
+    cluster_items = subtopics[cluster_mapping == cluster_id]
+    
+    # AI prompt includes:
+    # - Main topic context
+    # - Subtopics in this cluster
+    # - Instructions for naming
+    
+    response = ai_manager.call_structured(
+        prompt, 
+        model="gpt-4.1-mini",
+        response_model=SubtopicGroupingResponse
+    )
+    
+    cluster_names[cluster_id] = response.grouping_title
+            </div>
+
+            <h3>3. Consolidation Logic</h3>
+            <div class="code-block">
+# Analyze all cluster names for potential duplicates
+consolidation = ai_manager.call_structured(
+    consolidation_prompt,
+    model="gpt-4.1",
+    response_model=ConsolidationResponse
+)
+
+# Merge clusters with >85% conceptual overlap
+for category in consolidation.categories:
+    if category.conceptual_overlap >= 85:
+        merge_clusters(category.original_titles, 
+                      category.consolidated_title)
+            </div>
+        </div>
+
+        <!-- Slide 8: Cluster Metrics Aggregation -->
+        <div class="slide">
+            <h2>📈 Cluster Metrics Aggregation</h2>
+            
+            <p style="margin-bottom: 20px; font-size: 1.1em;">
+                After clustering, we aggregate statistics for each final subtopic:
+            </p>
+
+            <h3>Aggregation Formula</h3>
+            <div class="formula">
+For each cluster C:
+  
+  confidence<sub>C</sub> = Σ(priority_weight<sub>i</sub> × confidence<sub>i</sub>) / Σ(priority_weight<sub>i</sub>)
+  
+  trust_score<sub>C</sub> = Σ(priority_weight<sub>i</sub> × trust_score<sub>i</sub>) / Σ(priority_weight<sub>i</sub>)
+  
+  sentiment<sub>C</sub> = Σ(priority_weight<sub>i</sub> × sentiment<sub>i</sub>) / Σ(priority_weight<sub>i</sub>)
+  
+  provided_ratio<sub>C</sub> = count(provided sources) / total sources in C
+            </div>
+
+            <h3>Priority Weighting</h3>
+            <div class="card">
+                <strong>Priority Multiplier:</strong> Currently set to 1.0 for all sources, but can be adjusted 
+                based on source quality, recency, or other factors in future iterations.
+            </div>
+
+            <h3>Cluster Statistics</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Calculation Method</th>
+                        <th>Purpose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Weight</strong></td>
+                        <td>Sum of component cluster weights</td>
+                        <td>Importance/prevalence ranking</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sections Count</strong></td>
+                        <td>Number of original sections merged</td>
+                        <td>Coverage indicator</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Provided Ratio</strong></td>
+                        <td>Proportion from provided sources</td>
+                        <td>Source mix indicator</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sentiment Class</strong></td>
+                        <td>Derived from sentiment score</td>
+                        <td>Categorical classification</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Slide 9: Conflict Detection -->
+        <div class="slide">
+            <h2>⚠️ Conflict Detection Mechanism</h2>
+            
+            <h3>Purpose</h3>
+            <p style="font-size: 1.1em; margin-bottom: 20px;">
+                Identify significant discrepancies between provided and supplementary sources
+            </p>
+
+            <h3>Detection Algorithm</h3>
+            <div class="formula">
+# Calculate average sentiment for each source type
+avg_provided = mean(sentiment_scores[provided_sources])
+avg_supplementary = mean(sentiment_scores[supplementary_sources])
+
+# Detect conflict if difference exceeds threshold
+if |avg_provided - avg_supplementary| > 30:
+    conflict_detected = True
+    
+    # Calculate confidence intervals
+    confidence_interval = {
+        "provided": [min(provided), max(provided)],
+        "supplementary": [min(supplementary), max(supplementary)]
+    }
+            </div>
+
+            <h3>Example Conflict Scenarios</h3>
+            <div class="grid-2">
+                <div class="card">
+                    <h4>✅ No Conflict</h4>
+                    <ul>
+                        <li>Provided avg: 65 (Positive)</li>
+                        <li>Supplementary avg: 58 (Neutral)</li>
+                        <li>Difference: 7 points</li>
+                        <li>Status: <span class="badge badge-success">Consistent</span></li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>⚠️ Conflict Detected</h4>
+                    <ul>
+                        <li>Provided avg: 75 (Positive)</li>
+                        <li>Supplementary avg: 35 (Negative)</li>
+                        <li>Difference: 40 points</li>
+                        <li>Status: <span class="badge badge-warning">Conflict</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="metric-box">
+                <div>Conflict Warning Message</div>
+                <div style="font-size: 0.9em; margin-top: 15px; opacity: 0.9;">
+                    "Warning: Large discrepancy detected between provided and supplementary sources. 
+                    Provided sources average sentiment: 75.0, Supplementary sources average sentiment: 35.0. 
+                    Interpret results with caution."
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10: Pre/Post Filtering Analysis -->
+        <div class="slide">
+            <h2>🔍 Pre-Filtering vs Post-Filtering Trust Scores</h2>
+            
+            <h3>Why Two Calculations?</h3>
+            <div class="grid-2">
+                <div class="card">
+                    <h4>📊 Pre-Filtering (All Articles)</h4>
+                    <p>Sophisticated trust calculation on ALL articles before any filtering</p>
+                    <ul>
+                        <li>More comprehensive data</li>
+                        <li>Unbiased by relevance filtering</li>
+                        <li>Better for detecting systematic issues</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>🎯 Post-Filtering (Analyzed Articles)</h4>
+                    <p>Weighted aggregation on articles that passed relevance filtering</p>
+                    <ul>
+                        <li>More relevant to topic</li>
+                        <li>Quality-focused selection</li>
+                        <li>Better for final reporting</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Decision Logic</h3>
+            <div class="formula">
+retention_rate = analyzed_articles / total_articles
+
+use_post_filtering = (
+    |trust_change| < 10 AND
+    retention_rate > 0.5 AND
+    post_filtering_trust >= pre_filtering_trust - 5
+)
+            </div>
+
+            <h3>Confidence Levels</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trust Change</th>
+                        <th>Retention Rate</th>
+                        <th>Confidence Level</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>&lt; 5 points</td>
+                        <td>&gt; 70%</td>
+                        <td><span class="badge badge-success">High</span></td>
+                        <td>Use post-filtering</td>
+                    </tr>
+                    <tr>
+                        <td>&lt; 10 points</td>
+                        <td>&gt; 50%</td>
+                        <td><span class="badge badge-info">Medium</span></td>
+                        <td>Use post-filtering</td>
+                    </tr>
+                    <tr>
+                        <td>&gt; 10 points</td>
+                        <td>&lt; 50%</td>
+                        <td><span class="badge badge-warning">Low</span></td>
+                        <td>Use pre-filtering</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="card">
+                <strong>💡 Key Insight:</strong> This dual-calculation approach ensures we don't lose important 
+                information when filtering removes low-relevance articles that might still indicate broader trends.
+            </div>
+        </div>
+
+        <!-- Slide 11: Complete Flow Diagram -->
+        <div class="slide">
+            <h2>🌊 Complete Analysis Flow</h2>
+            
+            <div class="diagram">
+                <svg width="100%" height="800" viewBox="0 0 800 800">
+                    <!-- Article Collection -->
+                    <rect x="250" y="20" width="300" height="60" rx="10" fill="#667eea" stroke="#333" stroke-width="2"/>
+                    <text x="400" y="55" text-anchor="middle" fill="white" font-weight="bold" font-size="16">Article Collection</text>
+                    
+                    <!-- Arrow -->
+                    <path d="M 400 80 L 400 120" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Window Segmentation -->
+                    <rect x="250" y="120" width="300" height="60" rx="10" fill="#764ba2" stroke="#333" stroke-width="2"/>
+                    <text x="400" y="155" text-anchor="middle" fill="white" font-weight="bold" font-size="16">Window Segmentation</text>
+                    
+                    <!-- Arrow -->
+                    <path d="M 400 180 L 400 220" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Parallel Processing -->
+                    <rect x="50" y="220" width="250" height="80" rx="10" fill="#48bb78" stroke="#333" stroke-width="2"/>
+                    <text x="175" y="245" text-anchor="middle" fill="white" font-weight="bold" font-size="14">Sentiment Analysis</text>
+                    <text x="175" y="270" text-anchor="middle" fill="white" font-size="12">LLM or BERT-based</text>
+                    <text x="175" y="290" text-anchor="middle" fill="white" font-size="12">scoring per window</text>
+                    
+                    <rect x="500" y="220" width="250" height="80" rx="10" fill="#ed8936" stroke="#333" stroke-width="2"/>
+                    <text x="625" y="245" text-anchor="middle" fill="white" font-weight="bold" font-size="14">Trust Calculation</text>
+                    <text x="625" y="270" text-anchor="middle" fill="white" font-size="12">6-component</text>
+                    <text x="625" y="290" text-anchor="middle" fill="white" font-size="12">sophisticated scoring</text>
+                    
+                    <!-- Converge arrows -->
+                    <path d="M 175 300 L 175 340 L 400 340" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                    <path d="M 625 300 L 625 340 L 400 340" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Section Analysis -->
+                    <rect x="250" y="340" width="300" height="60" rx="10" fill="#667eea" stroke="#333" stroke-width="2"/>
+                    <text x="400" y="375" text-anchor="middle" fill="white" font-weight="bold" font-size="16">Section Analysis Complete</text>
+                    
+                    <!-- Arrow -->
+                    <path d="M 400 400 L 400 440" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Clustering -->
+                    <rect x="250" y="440" width="300" height="80" rx="10" fill="#4299e1" stroke="#333" stroke-width="2"/>
+                    <text x="400" y="465" text-anchor="middle" fill="white" font-weight="bold" font-size="14">Semantic Clustering</text>
+                    <text x="400" y="490" text-anchor="middle" fill="white" font-size="12">Qwen3 Embeddings +</text>
+                    <text x="400" y="510" text-anchor="middle" fill="white" font-size="12">Bayesian GMM</text>
+                    
+                    <!-- Arrow -->
+                    <path d="M 400 520 L 400 560" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Aggregation -->
+                    <rect x="250" y="560" width="300" height="80" rx="10" fill="#764ba2" stroke="#333" stroke-width="2"/>
+                    <text x="400" y="585" text-anchor="middle" fill="white" font-weight="bold" font-size="14">Weighted Aggregation</text>
+                    <text x="400" y="610" text-anchor="middle" fill="white" font-size="12">Calculate final scores</text>
+                    <text x="400" y="630" text-anchor="middle" fill="white" font-size="12">per cluster & topic</text>
+                    
+                    <!-- Arrow -->
+                    <path d="M 400 640 L 400 680" stroke="#667eea" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Final Result -->
+                    <rect x="250" y="680" width="300" height="60" rx="10" fill="#38a169" stroke="#333" stroke-width="2"/>
+                    <text x="400" y="715" text-anchor="middle" fill="white" font-weight="bold" font-size="16">Final Topic Analysis</text>
+                    
+                    <!-- Arrow marker definition -->
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#667eea" />
+                        </marker>
+                    </defs>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Slide 12: Code Implementation Example -->
+        <div class="slide">
+            <h2>💻 Implementation Example</h2>
+            
+            <h3>Complete Topic Analysis Function</h3>
+            <div class="code-block">
+@sentiment_router.post("/topic/{topic_id}/analyze")
+async def aggregate_topic_analysis(topic_id: str):
+    # 1. Fetch articles
+    articles = session.query(Article).filter(
+        Article.topic_id == topic_id
+    ).all()
+    
+    # 2. Separate by source type
+    provided = [a for a in articles if a.source_type == "provided"]
+    supplementary = [a for a in articles if a.source_type == "supplementary"]
+    
+    # 3. Calculate sophisticated trust scores (PRE-filtering)
+    pre_filtering_trust = calculate_sophisticated_trust(articles)
+    
+    # 4. Calculate weighted sentiment & trust (POST-filtering)
+    w_prov, w_supp = 0.7, 0.3
+    
+    for article_list, weight in [(provided, w_prov), 
+                                   (supplementary, w_supp)]:
+        for article in article_list:
+            sections = get_sections(article)
+            avg_sentiment = mean([s.sentiment_score for s in sections])
+            avg_trust = mean([s.trust_score for s in sections])
+            
+            # Weight by source type AND trust
+            w_i = weight * avg_trust
+            sentiment_num += w_i * avg_sentiment
+            sentiment_denom += w_i
+            
+            # Multi-factor trust weighting
+            quality = sophisticated_trust[article.id] / 100.0
+            consistency = calculate_consistency_factor(sections)
+            depth = calculate_depth_factor(sections)
+            
+            w_trust = weight * quality * consistency * depth
+            trust_num += w_trust * sophisticated_trust[article.id]
+            trust_denom += w_trust
+    
+    final_sentiment = sentiment_num / sentiment_denom
+    final_trust = trust_num / trust_denom
+    
+    # 5. Cluster subtopics
+    sections_df = create_sections_dataframe(articles)
+    final_subtopics, mapping = cluster_subtopics_from_sections(
+        ai_manager, topic.title, sections_df
+    )
+    
+    # 6. Return results
+    return {
+        "sentiment_score": final_sentiment,
+        "trust_score": final_trust,
+        "subtopics": final_subtopics,
+        "trust_calculation_report": comparison_report
+    }
+            </div>
+        </div>
+
+        <!-- Slide 13: Key Advantages -->
+        <div class="slide">
+            <h2>✨ Key Advantages of Our Approach</h2>
+            
+            <div class="grid-2" style="margin-top: 30px;">
+                <div class="card">
+                    <h3>🎯 Multi-Factor Weighting</h3>
+                    <ul style="margin-top: 10px; line-height: 2;">
+                        <li>Combines source type and trust scores</li>
+                        <li>Prevents low-quality sources from dominating</li>
+                        <li>Accounts for content depth and consistency</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🛡️ Comprehensive Trust Analysis</h3>
+                    <ul style="margin-top: 10px; line-height: 2;">
+                        <li>6 independent trust components</li>
+                        <li>MOZ API integration for credibility</li>
+                        <li>Less dependent on LLM hallucinations</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🤖 AI-Powered Clustering</h3>
+                    <ul style="margin-top: 10px; line-height: 2;">
+                        <li>Semantic understanding via embeddings</li>
+                        <li>Automatic duplicate consolidation</li>
+                        <li>Human-readable cluster names</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>⚠️ Conflict Detection</h3>
+                    <ul style="margin-top: 10px; line-height: 2;">
+                        <li>Identifies source disagreements</li>
+                        <li>Provides confidence intervals</li>
+                        <li>Transparent reporting to users</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🔍 Dual Trust Calculation</h3>
+                    <ul style="margin-top: 10px; line-height: 2;">
+                        <li>Pre and post-filtering comparison</li>
+                        <li>Prevents filtering bias</li>
+                        <li>Automated decision logic</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>📊 Probabilistic Clustering</h3>
+                    <ul style="margin-top: 10px; line-height: 2;">
+                        <li>Bayesian GMM for soft assignments</li>
+                        <li>Automatic cluster count selection</li>
+                        <li>Handles noise and outliers</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 14: Real-World Example -->
+        <div class="slide">
+            <h2>🌍 Real-World Example</h2>
+            
+            <h3>Topic: "Electric Vehicle Adoption in Europe"</h3>
+            
+            <div class="metric-box">
+                <h4>Final Sentiment Analysis</h4>
+                <div class="metric-value">68</div>
+                <div>Positive Sentiment</div>
+            </div>
+
+            <h3>Source Breakdown</h3>
+            <div class="grid-2">
+                <div class="card">
+                    <h4>📄 Provided Sources (5)</h4>
+                    <ul>
+                        <li>Average Sentiment: 72 (Positive)</li>
+                        <li>Average Trust: 78.5</li>
+                        <li>Weight Contribution: 70%</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>🌐 Supplementary Sources (15)</h4>
+                    <ul>
+                        <li>Average Sentiment: 62 (Positive)</li>
+                        <li>Average Trust: 65.2</li>
+                        <li>Weight Contribution: 30%</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Identified Subtopics (After Clustering)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Subtopic</th>
+                        <th>Sentiment</th>
+                        <th>Trust</th>
+                        <th>Weight</th>
+                        <th>Sources</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Government Incentives & Policy</td>
+                        <td>75 (Positive)</td>
+                        <td>82.3</td>
+                        <td>28%</td>
+                        <td>12</td>
+                    </tr>
+                    <tr>
+                        <td>Charging Infrastructure Development</td>
+                        <td>68 (Positive)</td>
+                        <td>75.8</td>
+                        <td>24%</td>
+                        <td>10</td>
+                    </tr>
+                    <tr>
+                        <td>Consumer Adoption Barriers</td>
+                        <td>45 (Neutral)</td>
+                        <td>71.2</td>
+                        <td>18%</td>
+                        <td>8</td>
+                    </tr>
+                    <tr>
+                        <td>Manufacturer Production Plans</td>
+                        <td>78 (Positive)</td>
+                        <td>79.5</td>
+                        <td>16%</td>
+                        <td>7</td>
+                    </tr>
+                    <tr>
+                        <td>Environmental Impact Assessment</td>
+                        <td>71 (Positive)</td>
+                        <td>85.1</td>
+                        <td>14%</td>
+                        <td>6</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="card">
+                <strong>Analysis:</strong> Overall positive sentiment with strong trust scores. 
+                The main concern (Consumer Adoption Barriers) is balanced by positive developments 
+                in infrastructure and policy. No significant conflict detected between source types.
+            </div>
+        </div>
+
+        <!-- Slide 15: Future Enhancements -->
+        <div class="slide">
+            <h2>🚀 Future Enhancements</h2>
+            
+            <div class="grid-2" style="margin-top: 30px;">
+                <div class="card">
+                    <h3>📈 Temporal Analysis</h3>
+                    <p>Track sentiment and trust evolution over time</p>
+                    <ul style="margin-top: 10px;">
+                        <li>Trend detection</li>
+                        <li>Event impact analysis</li>
+                        <li>Prediction capabilities</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🌐 Multi-Language Support</h3>
+                    <p>Expand analysis to non-English sources</p>
+                    <ul style="margin-top: 10px;">
+                        <li>Translation integration</li>
+                        <li>Cross-cultural sentiment</li>
+                        <li>Regional comparison</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🎯 Entity-Level Analysis</h3>
+                    <p>Track sentiment for specific entities</p>
+                    <ul style="margin-top: 10px;">
+                        <li>Company mentions</li>
+                        <li>Product sentiment</li>
+                        <li>Person/brand tracking</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🔄 Real-Time Updates</h3>
+                    <p>Continuous monitoring and alerting</p>
+                    <ul style="margin-top: 10px;">
+                        <li>Sentiment change alerts</li>
+                        <li>New source integration</li>
+                        <li>Dashboard updates</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🤝 Comparative Analysis</h3>
+                    <p>Compare multiple topics side-by-side</p>
+                    <ul style="margin-top: 10px;">
+                        <li>Cross-topic insights</li>
+                        <li>Benchmark analysis</li>
+                        <li>Correlation detection</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>🧮 Advanced Clustering</h3>
+                    <p>Hierarchical and dynamic clustering</p>
+                    <ul style="margin-top: 10px;">
+                        <li>Multi-level hierarchies</li>
+                        <li>Adaptive cluster counts</li>
+                        <li>Cross-cluster relationships</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 16: Summary -->
+        <div class="slide">
+            <h2>📝 Summary</h2>
+            
+            <div style="font-size: 1.2em; line-height: 2; margin: 30px 0;">
+                <p>Our sentiment analysis and clustering system provides:</p>
+                
+                <div style="margin: 30px 0;">
+                    <div class="card" style="margin: 15px 0;">
+                        <strong>1. Multi-Factor Sentiment Scoring</strong>
+                        <p>Weighted by source type (70/30 split) and sophisticated trust scores</p>
+                    </div>
+                    
+                    <div class="card" style="margin: 15px 0;">
+                        <strong>2. Comprehensive Trust Analysis</strong>
+                        <p>6 independent components with multi-factor weighting (quality, consistency, depth)</p>
+                    </div>
+                    
+                    <div class="card" style="margin: 15px 0;">
+                        <strong>3. AI-Powered Semantic Clustering</strong>
+                        <p>Qwen3 embeddings + Bayesian GMM + GPT-4.1 consolidation</p>
+                    </div>
+                    
+                    <div class="card" style="margin: 15px 0;">
+                        <strong>4. Conflict Detection & Transparency</strong>
+                        <p>Identifies discrepancies and provides detailed reporting</p>
+                    </div>
+                    
+                    <div class="card" style="margin: 15px 0;">
+                        <strong>5. Dual Trust Calculation</strong>
+                        <p>Pre/post-filtering comparison with automated decision logic</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-box">
+                <h3>Result: A robust, transparent, and intelligent analysis system</h3>
+                <p style="margin-top: 15px; font-size: 0.9em;">
+                    Combining traditional NLP, modern AI, and sophisticated statistical methods
+                </p>
+            </div>
+        </div>
+
+        <!-- Navigation hint -->
+        <div style="text-align: center; padding: 40px; color: white; font-size: 1.2em;">
+            <p>💡 Scroll down to view all slides</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">Save this file and open in your browser for the best viewing experience</p>
+        </div>
+    </div>
+
+    <script>
+        // Add smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Add animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -100px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.slide').forEach(slide => {
+            observer.observe(slide);
+        });
+
+        // Add print functionality
+        function printPresentation() {
+            window.print();
+        }
+
+        // Log interactions
+        console.log('Sentiment Analysis Presentation loaded successfully!');
+    </script>
+</body>
+</html>
